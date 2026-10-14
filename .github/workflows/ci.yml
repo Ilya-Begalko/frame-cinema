@@ -18,6 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +35,7 @@ jobs:
           VITE_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
           if [ -z "$VITE_TMDB_API_KEY" ]; then
-            echo "Add repository secret TMDB_API_KEY. GitHub Pages has no server, so the browser build needs the key."
+            echo "Add TMDB_API_KEY to the github-pages environment. GitHub Pages has no server, so the browser build needs the key."
             exit 1
           fi
 
