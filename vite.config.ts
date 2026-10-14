@@ -1,8 +1,36 @@
+import { copyFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { loadEnv, type Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+
+/**
+ * На GitHub Pages проект открывается как /имя-репозитория/.
+ * Локально base остаётся «/»: GITHUB_PAGES выставляет только workflow.
+ */
+function siteBase() {
+  if (process.env.GITHUB_PAGES !== 'true') return '/'
+  const repo = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'frame-cinema'
+  return `/${repo}/`
+}
+
+/**
+ * Pages не умеет отдавать index.html на /film/123.
+ * Копия в 404.html сохраняет адрес, и роутер читает его сам.
+ */
+function githubPagesSpaFallback(): Plugin {
+  return {
+    name: 'github-pages-spa-fallback',
+    apply: 'build',
+    closeBundle() {
+      if (process.env.GITHUB_PAGES !== 'true') return
+      const dist = resolve('dist')
+      copyFileSync(resolve(dist, 'index.html'), resolve(dist, '404.html'))
+    },
+  }
+}
 
 /**
  * Прокси нужен, чтобы ключ TMDB жил только в процессе Vite.
@@ -72,7 +100,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react(), tailwindcss(), tmdbDevProxy(env.TMDB_API_KEY ?? '')],
+    base: siteBase(),
+    plugins: [react(), tailwindcss(), tmdbDevProxy(env.TMDB_API_KEY ?? ''), githubPagesSpaFallback()],
     test: {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',

@@ -8,6 +8,17 @@ import { NotFoundPage } from '../pages/not-found/NotFoundPage'
 import { SharedCollectionPage } from '../pages/shared/SharedCollectionPage'
 
 /**
+ * На GitHub Pages сайт лежит в подкаталоге. BASE_URL приходит из Vite
+ * и уже содержит ведущий и завершающий слэш. Роутеру завершающий не нужен.
+ * Локально BASE_URL равен «/», и basename не передаём.
+ */
+function pagesBasename() {
+  const base = import.meta.env.BASE_URL
+  if (base === '/') return undefined
+  return base.replace(/\/$/, '')
+}
+
+/**
  * Маршруты описывают, какой экран показать для какого адреса.
  * Роутер создаётся один раз вне компонентов: ему не нужно пересоздаваться
  * при каждом обновлении экрана.
@@ -28,4 +39,4 @@ export const router = createBrowserRouter([
       { path: '*', element: <NotFoundPage /> },
     ],
   },
-])
+], { basename: pagesBasename() })
