@@ -29,9 +29,19 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - name: Require TMDB key
+        env:
+          VITE_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          if [ -z "$VITE_TMDB_API_KEY" ]; then
+            echo "Add repository secret TMDB_API_KEY. GitHub Pages has no server, so the browser build needs the key."
+            exit 1
+          fi
+
       - run: npm run build
         env:
           GITHUB_PAGES: true
+          VITE_TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

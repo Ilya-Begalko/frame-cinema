@@ -1,7 +1,10 @@
 /**
- * Клиент ходит только на свой сервер разработки: `/tmdb/...`.
- * Ключ подставляет прокси в vite.config.ts. В этом файле ключа нет специально.
+ * Локально браузер ходит на `/tmdb/...`, а ключ добавляет прокси Vite.
+ * На GitHub Pages сервера нет, поэтому сборка Pages передаёт VITE_TMDB_API_KEY
+ * и запрос идёт прямо на api.themoviedb.org. Этот ключ оказывается в скачанном JavaScript.
  */
+
+const pagesKey = import.meta.env.VITE_TMDB_API_KEY
 
 export class TmdbError extends Error {
   readonly status: number
@@ -26,9 +29,17 @@ function toQuery(params: Record<string, QueryValue>) {
   return query ? `?${query}` : ''
 }
 
-/** Общий GET к TMDB через локальный прокси. */
+/** Локальный прокси или прямой адрес TMDB, если сборка Pages передала ключ. */
+export function tmdbUrl(path: string, params: Record<string, QueryValue> = {}, apiKey = pagesKey) {
+  if (apiKey) {
+    return `https://api.themoviedb.org/3${path}${toQuery({ ...params, api_key: apiKey })}`
+  }
+  return `/tmdb${path}${toQuery(params)}`
+}
+
+/** Общий GET к TMDB. */
 export async function tmdbGet<T>(path: string, params: Record<string, QueryValue> = {}): Promise<T> {
-  const response = await fetch(`/tmdb${path}${toQuery(params)}`)
+  const response = await fetch(tmdbUrl(path, params))
   if (!response.ok) {
     let message = `TMDB responded with ${response.status}`
     try {
