@@ -7,10 +7,11 @@ import { MovieCard } from '../../components/movie-card/MovieCard'
 import { MoodSelector } from '../../features/mood-matching/MoodSelector'
 import type { MoodId } from '../../features/mood-matching/moods'
 import { PROGRAMME, tonightsPair } from '../../features/discovery/programme'
+import { pickSpotlight, rollSpotlight } from '../../features/discovery/spotlight'
 import { useSurpriseMe } from '../../features/discovery/useSurprise'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { asSummary } from '../../lib/movies'
-import { getMoviesByIds } from '../../services/tmdb/movies.api'
+import { discoverMovies, getMoviesByIds } from '../../services/tmdb/movies.api'
 import { useCinemaStore } from '../../stores/cinema.store'
 
 /**
@@ -25,6 +26,8 @@ export function DiscoverPage() {
   const language = useCinemaStore((state) => state.language)
   const [moods, setMoods] = useState<MoodId[]>([])
   const { surprise, pending, message } = useSurpriseMe()
+  // Жеребьёвка один раз за заход: обновление страницы даёт другой фильм, клик по настроению — нет.
+  const [spotlightRoll] = useState(rollSpotlight)
   const pair = tonightsPair()
 
   // Опции запроса нельзя собирать заново на каждом кадре.
@@ -36,6 +39,20 @@ export function DiscoverPage() {
     }),
     [language],
   )
+  const spotlightQuery = useMemo(
+    () => ({
+      queryKey: ['spotlight', spotlightRoll.page, language] as const,
+      queryFn: () =>
+        discoverMovies({
+          language,
+          page: spotlightRoll.page,
+          sort_by: 'popularity.desc',
+          include_adult: false,
+          'vote_count.gte': 200,
+        }),
+    }),
+    [language, spotlightRoll.page],
+  )
   const doubleFeatureQuery = useMemo(
     () => ({
       queryKey: ['double-feature', pair.ids, language] as const,
@@ -44,12 +61,11 @@ export function DiscoverPage() {
     [language, pair],
   )
   const programme = useQuery(programmeQuery)
+  const spotlight = useQuery(spotlightQuery)
   const doubleFeature = useQuery(doubleFeatureQuery)
 
   const programmeMovies = programme.data?.map(asSummary) ?? []
-  const feature = programmeMovies[0]
-  const rest = programmeMovies.slice(1)
-  const featureKicker = PROGRAMME.find((item) => item.id === feature?.id)?.kicker
+  const spotlightMovie = pickSpotlight(spotlight.data?.results ?? [], spotlightRoll.slot)
   const exploreTo = moods.length > 0 ? `/explore?moods=${moods.join(',')}` : '/explore'
 
   return (
@@ -72,8 +88,19 @@ export function DiscoverPage() {
           {message ? <p className="mt-4 text-sm text-gold">{message}</p> : null}
         </div>
         <div className="lg:col-span-5">
-          {programme.isLoading ? <SkeletonCard /> : null}
-          {feature ? <MovieCard movie={feature} kicker={featureKicker} size="feature" /> : null}
+          {spotlight.isLoading ? <SkeletonCard /> : null}
+          {spotlight.isError ? (
+            <EmptyState
+              title="This pick did not load."
+              body={spotlight.error instanceof Error ? spotlight.error.message : 'TMDB could not be reached.'}
+              action={
+                <Button variant="ghost" onClick={() => void spotlight.refetch()}>
+                  Try again
+                </Button>
+              }
+            />
+          ) : null}
+          {spotlightMovie ? <MovieCard movie={asSummary(spotlightMovie)} size="feature" /> : null}
         </div>
       </section>
 
@@ -110,9 +137,9 @@ export function DiscoverPage() {
             ))}
           </div>
         ) : null}
-        {rest.length > 0 ? (
+        {programmeMovies.length > 0 ? (
           <div className="mt-8 grid gap-8 md:grid-cols-2 xl:grid-cols-4">
-            {rest.map((movie, index) => (
+            {programmeMovies.map((movie, index) => (
               <div key={movie.id} className={index === 0 ? 'md:col-span-2 xl:col-span-2' : undefined}>
                 <MovieCard
                   movie={movie}
